@@ -2,7 +2,6 @@ import random, time, math
 import numpy as np
 import matplotlib.pyplot as plt
 import linfunc
-from scipy.stats import truncnorm
 
 
 def cap(x, most):
@@ -11,54 +10,44 @@ def cap(x, most):
     return x
 
 
-def get_truncated_normal(mean, sd, low, upp): #This is rediculously slow. fix it.
-    """
-    yoinked from:
-    https://stackoverflow.com/questions/36894191/how-to-get-a-normal-distribution-within-a-range-in-numpy
-    """
-    return truncnorm(
-        (low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd)
-
-
 class FailureFunction:
     def __init__(self, choose = "Weibull", params = None):
         """
+        This is the standin for the model that you sample for the failure times.
+        The only function the actual model object needs for this code to work is 
+        .sample(), which returns a sample from the models distribution.
         
         Inputs
         ------
         choose : string
             The distribution you want to use, choose from:
-                Weibill, Normal
+                Weibill, 
                 
         params : list<float>
             choose       | params
             ----------------------------
             Weibull      | (beta, eta)
-            Normal       | (mean, std, upper = 10000)
             
         """
         
         if params is None:
             if choose == "Weibull":
                 params = (2,10)
-            if choose == "Normal":
-                params = (10,2)
                 
         if choose == "Weibull":
             self.sample_func = lambda : ((-1*math.log(1-random.random()))**(1/params[0]))*params[1] 
-        if choose == "Normal":
-            if(len(params)) == 2:
-                upper = 10000
-            else:
-                upper = params[2]
-            self.sample_func = lambda : get_truncated_normal(params[0], params[1], 0, upper).rvs()
-        
+
     def sample(self):
         return self.sample_func()
     
     
 class FailureCount:
     def __init__(self, choose = "Set", params = None):
+        """
+        This is the class that is a standin for the number of failures the component is expected to have
+        over a given period of time. The only thing the actual class must have is the sample function.
+        
+        """
         if params is None:
             if choose == "Set":
                 params = 1
@@ -73,6 +62,20 @@ class FailureCount:
     
 class FailSegment:
     def __init__(self, start, end, value):
+        """
+        This class just represents 1D segments which have a value. it supports a couple of operations 
+        between segments.
+        
+        Parameters
+        ----------
+        start : float
+            the starting value, must be less than the end value
+        end : float
+            the end value.
+        value : float
+            the value of this segment
+        
+        """
         self.start = start
         self.end = end
         self.value = value
@@ -87,11 +90,15 @@ class FailSegment:
         return "(" + str(self.start) + ", " + str(self.end) + ", " + str(self.value) + ")"
     
     def collide(self, other):
+        """
+        checks if two segments overlap.
+        """
         return max(self.start, other.start) < min(self.end, other.end)
     
     def compose(self, other):
         """
-        
+        If segments were funcions, this is just adding together the functions.
+        so like {f(x)=1, 0<x<2} + {f(x)=1, 1<x<3} = {f(x)=1, 0<x<1} + {f(x)=2, 1<x<2} + {f(x)=1, 2<x<3}
 
         Parameters
         ----------
@@ -127,6 +134,9 @@ class FailSegment:
     
 class SegmentGraph:
     def __init__(self):
+        """
+        This function just optimises composing lots of segments, assuming the value of each segment is 1.
+        """
         self.vals = []
         self.buff = []
         self.integral = 0
@@ -149,31 +159,38 @@ class SegmentGraph:
         count = 0
         self.integral = 0
         start = firsts[0]
+        """
+        Basically how this algorithm works, is it keeps track of 2 lists, a list of the first x_position of the 
+        segments, and the list of the second value of the second x_position of the segments.
+        it the remembers what x value it is up to, and check to see if the next closest value is a first or a second
+        if its a first, this means you increase the count, if its a second you decrease.
+        
+        """
         while firsts_index < len(firsts):
             
             if vals_index == len(self.vals):
                 self.vals += [0,] * len(self.vals)
                 
-            if firsts[firsts_index] < seconds[seconds_index]:
+            if firsts[firsts_index] < seconds[seconds_index]: #If the first part of a segment comes first
                 count += 1
                 self.vals[vals_index] = (firsts[firsts_index], count)
                 firsts_index += 1
-                self.integral += (self.vals[vals_index][0]-start)*self.vals[vals_index][1]
+                self.integral += (self.vals[vals_index][0]-start)*self.vals[vals_index][1] #This line starts summing the integral
                 start = self.vals[vals_index][0]
                 vals_index += 1
-            elif firsts[firsts_index] > seconds[seconds_index]:
+            elif firsts[firsts_index] > seconds[seconds_index]: #If the second part of a segment comes first
                 count -= 1
                 self.vals[vals_index] = (seconds[seconds_index], count)
                 seconds_index += 1
                 self.integral += (self.vals[vals_index][0]-start)*self.vals[vals_index][1]
                 start = self.vals[vals_index][0]
                 vals_index += 1
-            elif firsts[firsts_index] == seconds[seconds_index]:
+            elif firsts[firsts_index] == seconds[seconds_index]: #If they come at the same time.
                 seconds_index += 1
                 firsts_index += 1
             
         
-        while seconds_index < len(seconds):
+        while seconds_index < len(seconds): # if we have ran out of firsts, there are only seconds left.
             
             if vals_index == len(self.vals):
                 self.vals += [0,] * len(self.vals)
@@ -184,7 +201,7 @@ class SegmentGraph:
             
             vals_index += 1
             
-        if 0 in self.vals:
+        if 0 in self.vals: #remove the zeros from the list
             self.vals = self.vals[:self.vals.index(0)]
             
             
@@ -252,17 +269,17 @@ class ParallelOperation:
         
         for i in range(n):
             fail_segments = []
-            for comp_index in range(self.n_comps):
-                fail_count = self.comp_failcount[comp_index].sample()
+            for comp_index in range(self.n_comps): #for each component
+                fail_count = self.comp_failcount[comp_index].sample() #sample how many failures
                 nxt = [0,] * fail_count
                 for r in range(fail_count):
-                    start = self.comp_functions[comp_index].sample()
-                    nxt[r] = FailSegment(start, start + self.ttf, 1)
+                    start = self.comp_functions[comp_index].sample() #sample when the failure occurs
+                    nxt[r] = FailSegment(start, start + self.ttf, 1) #record the range it occurs at using the ttf
                
                 nxt.sort()
                 
                 index = 0
-                while index < len(nxt)-1:
+                while index < len(nxt)-1: #merge segments, if failures occur while you are fixing
                     if nxt[index].collide(nxt[index+1]):
                         merged = nxt[index].merge(nxt[index+1])
                         del nxt[index]
@@ -275,6 +292,7 @@ class ParallelOperation:
             fail_segments.sort()
 
             
+            #start summing up the segments, and count when n many failures occur.
             index = 0
             while index < len(fail_segments)-1:
                 if fail_segments[index].collide(fail_segments[index+1]):
@@ -331,7 +349,7 @@ class ParallelOperation:
                 self.arranged_data.append(linfunc.linsample([x[0] for x in self.data[comp].vals], [x[1]/intg for x in self.data[comp].vals], (least, most, RESOLUTION)))
         
         
-        plt.title("Expected efficiency")
+        plt.title("Expected impact")
         plt.xlabel("Time")
         plt.ylabel("Efficiency")
         
@@ -346,6 +364,8 @@ class ParallelOperation:
         plt.plot(x_vals, y_vals)
         plt.show()
         plt.figure()
+        
+    
         
         
 if __name__ == "__main__":
@@ -362,13 +382,5 @@ if __name__ == "__main__":
                                                       FailureFunction(params = (4,5))), ttf = 6)
     Test2.simulate(timeit = True)
     Test2.summarise()
-        
-        
-        
-        
-        
-        
-        
-        
         
         
