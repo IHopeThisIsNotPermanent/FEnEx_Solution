@@ -10,6 +10,7 @@ def cap(x, most):
         return most
     return x
 
+
 def get_truncated_normal(mean, sd, low, upp): #This is rediculously slow. fix it.
     """
     yoinked from:
@@ -17,6 +18,7 @@ def get_truncated_normal(mean, sd, low, upp): #This is rediculously slow. fix it
     """
     return truncnorm(
         (low - mean) / sd, (upp - mean) / sd, loc=mean, scale=sd)
+
 
 class FailureFunction:
     def __init__(self, choose = "Weibull", params = None):
@@ -54,11 +56,12 @@ class FailureFunction:
     def sample(self):
         return self.sample_func()
     
+    
 class FailureCount:
     def __init__(self, choose = "Set", params = None):
         if params is None:
             if choose == "Set":
-                params = 2
+                params = 1
         
         if choose == "Set":
             self.sample_func = lambda : params
@@ -66,6 +69,7 @@ class FailureCount:
         
     def sample(self):
         return self.sample_func()
+    
     
 class FailSegment:
     def __init__(self, start, end, value):
@@ -120,14 +124,6 @@ class FailSegment:
     def merge(self, other):
         return FailSegment(min(self.start, other.start), max(self.end, other.end), self.value)
     
-class Zero:
-    def __init__(self):
-        pass
-    def __lt__(self, other):
-        return False
-    
-    def __gt__(self, other):
-        return True
     
 class SegmentGraph:
     def __init__(self):
@@ -142,19 +138,17 @@ class SegmentGraph:
         self.buff.append(value)
         
     def update(self):
-        T1 = time.time()
         if len(self.buff) == 0:
             return
         self.vals = [0, ] * len(self.buff)*2
         firsts = list(np.sort([x.start for x in self.buff]))
         seconds = list(np.sort([x.end for x in self.buff]))
-        print("sort:" , time.time() - T1)
-        T1 = time.time()
         vals_index = 0
         firsts_index = 0
         seconds_index = 0
         count = 0
         self.integral = 0
+        start = firsts[0]
         while firsts_index < len(firsts):
             
             if vals_index == len(self.vals):
@@ -164,15 +158,20 @@ class SegmentGraph:
                 count += 1
                 self.vals[vals_index] = (firsts[firsts_index], count)
                 firsts_index += 1
+                self.integral += (self.vals[vals_index][0]-start)*self.vals[vals_index][1]
+                start = self.vals[vals_index][0]
+                vals_index += 1
             elif firsts[firsts_index] > seconds[seconds_index]:
                 count -= 1
                 self.vals[vals_index] = (seconds[seconds_index], count)
                 seconds_index += 1
+                self.integral += (self.vals[vals_index][0]-start)*self.vals[vals_index][1]
+                start = self.vals[vals_index][0]
+                vals_index += 1
             elif firsts[firsts_index] == seconds[seconds_index]:
                 seconds_index += 1
                 firsts_index += 1
-                
-            vals_index += 1
+            
         
         while seconds_index < len(seconds):
             
@@ -185,15 +184,13 @@ class SegmentGraph:
             
             vals_index += 1
             
-        print("indexing:", time.time() - T1)
+        if 0 in self.vals:
+            self.vals = self.vals[:self.vals.index(0)]
             
-        
-        
-
+            
 class ParallelOperation:
-    def __init__(self, n_comps, comp_contribution, comp_function = "Weibull", 
-                 comp_params = None, comp_failcount = "Set", comp_failparams = None,
-                 ttf = 1):
+    def __init__(self, n_comps, comp_contribution, comp_functions = None, 
+                 comp_failcounts = None, ttf = 1):
         """
         This class represents a set of n components in parallel. 
         The parameters you have to work with are
@@ -206,6 +203,7 @@ class ParallelOperation:
         Assumptions
         .the probability that a compoenent will fail is not dependent on if it has failed before, or if other compoenets
             have failed before
+        .iof of no components failing is 0
 
         Parameters
         ----------
@@ -213,21 +211,10 @@ class ParallelOperation:
             The number of components
         comp_contribution : float
             The contribution each component outputs
-        comp_function : string, optional
-            The function used to determine when each component fails.
-        comp_params : list<float>, optional
-            The list of parameters for the failure sampling function.
-            Function  | Parameters
-            ----------------------
-            Weibull   | (beta, eta)
-            Normal    | (mean, std, upper = 10000)
-        comp_failcount : string, optional
-            The function you want to use to sample the number of times a peice of equiptment fails.
-        comp_failparams : list<float>, optional
-            The list of parameters for the failcount sampling function.
-            Function  | Parameters
-            ----------------------
-            Set       | (value)
+        comp_functions : FailureFunction, optional
+            The functions used to determine when each component fails.
+        comp_failcounts : FailureCount, optional
+            The functions you want to use to sample the number of times a peice of equiptment fails.
         ttf : float, optional
             the amount of time it takes to repair a peice of equiptment. 
 
@@ -238,14 +225,17 @@ class ParallelOperation:
         """
         self.n_comps = n_comps
         self.comp_contribution = comp_contribution
-        if comp_params is None:
-            comp_params = [None,]*n_comps
-        if comp_failparams is None:
-            comp_failparams = [None,]*n_comps
-        self.comp_functions = [FailureFunction(comp_function, params) for params in comp_params]
-        self.comp_failcount = [FailureCount(comp_failcount, params) for params in comp_failparams]
+
+        if comp_functions == None:
+            self.comp_functions = [FailureFunction("Weibull"), ] * n_comps
+        else:
+            self.comp_functions = comp_functions
+        if comp_failcounts == None:        
+            self.comp_failcount = [FailureCount("Set")] * n_comps
+        else:
+            self.comp_failcount = comp_failcounts()
+
         self.ttf = ttf
-        
         
         self.data = [SegmentGraph() for x in range(n_comps)] #self.data[0] if you fit linear segments to the data points, it will
                                                  #             tell you the number of times only 1 failure was occuing
@@ -255,6 +245,8 @@ class ParallelOperation:
         self.arranged_data = [] #the y values of all the aligned x_values
         
     def simulate(self, n = 10000, timeit = False): #probs make quicker
+        self.sorted = False
+    
         if timeit:
             T1 = time.time()
         
@@ -281,6 +273,7 @@ class ParallelOperation:
                 fail_segments = fail_segments + nxt
             
             fail_segments.sort()
+
             
             index = 0
             while index < len(fail_segments)-1:
@@ -290,10 +283,12 @@ class ParallelOperation:
                     del fail_segments[index]
                     for add in add_values:
                         if add.value != 0:
-                            fail_segments.insert(index, add)
+                            fail_segments.append(add)
+                    fail_segments.sort()
                 else:
                     index += 1
-                    
+                  
+                
             for segment in fail_segments:
                 self.data[segment.value-1].add(segment)
             
@@ -305,25 +300,59 @@ class ParallelOperation:
         
     def iof(self, n = 1):
         return max(0, 1-(self.n_comps-n)*self.comp_contribution)
-        
-    def error(self):
-        pass
     
     def summarise(self):
+        
         plt.title("Probability of n-failures")
-        plt.xlabel("no. failures")
-        plt.ylabel("Probability as a percent")
-        for n in range(n_comps):
+        plt.xlabel("Time")
+        plt.ylabel("Probability of exactly n failues")
+        intg = sum([self.data[n].integral for n in range(self.n_comps)])
+        for n in range(self.n_comps):
+            disp = self.data[n].vals
+            plt.plot([x[0] for x in disp], [x[1]/intg for x in disp], label = str(n+1) + " failures")
+        plt.legend()
+        plt.show()
+        plt.figure()
+        
+        
+        most = max([max([y[0] for y in x.vals]) for x in self.data])
+        least = min([min([y[0] for y in x.vals]) for x in self.data])
+        
+        RESOLUTION = 1000
+        
+        if not self.sorted:
+            self.sorted = True
+            for x in self.data:
+                x.vals.insert(0,(least,0))
+                x.vals.append((most,0))
             
-            plt.bar(list(range(0,self.components[0]+1)), [100*x/sum(self.data_points) for x in self.data_points])
+            self.arranged_data = []
+            for comp in range(self.n_comps):
+                self.arranged_data.append(linfunc.linsample([x[0] for x in self.data[comp].vals], [x[1]/intg for x in self.data[comp].vals], (least, most, RESOLUTION)))
+        
+        
+        plt.title("Expected efficiency")
+        plt.xlabel("Time")
+        plt.ylabel("Efficiency")
+        
+        x_vals = list(np.arange(least, most, (most-least)/RESOLUTION))
+        while len(x_vals) > 1000:
+            x_vals.pop()
+        y_vals = [1, ] * RESOLUTION
+        for x in range(RESOLUTION):
+            for comp in range(self.n_comps):
+                y_vals[x] -= self.arranged_data[comp][x]*self.iof(comp+1)
+                
+        plt.plot(x_vals, y_vals)
         plt.show()
         plt.figure()
         
         
 if __name__ == "__main__":
-    Test1 = ParallelOperation(4,1/3, comp_function = "Weibull")
+    print("Test1, 4 components, 10000 iterations, ttf = 6, no.failures is set at 2, failure distribution is weibull(2,10)")
+    Test1 = ParallelOperation(4,1/4, ttf = 6)
     Test1.simulate(timeit = True)
-    #Test1.summarise()
+    Test1.summarise()
     pass
         
         
