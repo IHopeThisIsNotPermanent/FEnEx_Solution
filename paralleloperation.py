@@ -315,8 +315,8 @@ class ParallelOperation:
         plt.figure()
         
         
-        most = max([max([y[0] for y in x.vals]) for x in self.data])
-        least = min([min([y[0] for y in x.vals]) for x in self.data])
+        most = max([max([0,] + [y[0] for y in x.vals]) for x in self.data])
+        least = min([min([most, ]+[y[0] for y in x.vals]) for x in self.data])
         
         RESOLUTION = 1000
         
@@ -353,7 +353,15 @@ if __name__ == "__main__":
     Test1 = ParallelOperation(4,1/4, ttf = 6)
     Test1.simulate(timeit = True)
     Test1.summarise()
-    pass
+    
+    print("Test2, 4 components, 10000 iterations, ttf = 6, no.failures is set to 1, failure distribution is weibull")
+    print("the parameters for the weibull dists are: (10,10),(10,20),(5,5),(4,5)")
+    Test2 = ParallelOperation(4,1/4,comp_functions = (FailureFunction(params = (10,10)),
+                                                      FailureFunction(params = (10,20)),
+                                                      FailureFunction(params = (5,5)),
+                                                      FailureFunction(params = (4,5))), ttf = 6)
+    Test2.simulate(timeit = True)
+    Test2.summarise()
         
         
         
