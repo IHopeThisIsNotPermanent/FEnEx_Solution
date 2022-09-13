@@ -54,10 +54,14 @@ class FailureCount:
         
         if choose == "Set":
             self.sample_func = lambda : params
+            self.sample_expected() = lambda: params
         
         
     def sample(self):
         return self.sample_func()
+    
+    def expected(self):
+        return self.sample_expected()
     
     
     
