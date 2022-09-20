@@ -1,10 +1,6 @@
 #Decomposition Method
 from ReliabilityFunctions import *
 
-"""
-https://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=8764359
-"""
-
 import numpy as np   
 import networkx as nx  
 import matplotlib.pyplot as plt
@@ -118,8 +114,45 @@ class System:
         
         plt.figure()
     
+    def reliability(self, failures):
+        cumulation = {}
+        for index, node in enumerate(self.node_info):
+            cumulation[node] = [0, failures[index]]
+        cumulation["IN"] = [1, 1]
+        cumulation["OUT"] = [0, 1]
+        for node in self.node_info:
+            for nxt in self.node_info[node][2]:
+                cumulation[nxt][0] = most(cumulation[nxt][0]+self.node_info[node][1]*cumulation[node][0]*cumulation[node][1])
+        return cumulation["OUT"][0] * cumulation["OUT"][1]
+            
+    
     def sample_reliability(self,t):
-        pass
+        total = 0
+        
+        T1 = time.time()
+        
+        for x in range(2**(len(self.node_info)-2)):
+            bools = fill("0", len(self.node_info)-2, str(bin(x))[2:])
+            bools = "1"+bools+"1"
+            bools = [int(x) for x in bools]
+            R = self.reliability(bools)
+            if R == 0:
+                continue
+            P = 1
+            for index, node in enumerate(self.node_info):
+                if index == 0 or index == len(self.node_info)-1:
+                    continue
+                if bools[index] == 0:
+                    inv = lambda x: x 
+                else:
+                    inv = lambda x: 1 - x
+                failfunc = self.node_info[node][0].intg
+                P *= inv(failfunc(t) - failfunc(t-self.node_info[node][3]))
+            total += R*P
+        
+        #print(time.time()-T1)
+        
+        return total
     
         
 

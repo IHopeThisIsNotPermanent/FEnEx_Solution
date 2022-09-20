@@ -36,9 +36,15 @@ class FailureFunction:
                 
         if choose == "Weibull":
             self.sample_func = lambda : ((-1*math.log(1-random.random()))**(1/params[0]))*params[1] 
+            self.intg_func = lambda t : 1 - math.exp(-1*(t/params[1])**params[0])
 
     def sample(self):
         return self.sample_func()
+    
+    def intg(self, t):
+        if t < 0:
+            return 0
+        return self.intg_func(t)
     
     
 class FailureCount:
@@ -54,7 +60,7 @@ class FailureCount:
         
         if choose == "Set":
             self.sample_func = lambda : params
-            self.sample_expected() = lambda: params
+            self.sample_expected = lambda: params
         
         
     def sample(self):
