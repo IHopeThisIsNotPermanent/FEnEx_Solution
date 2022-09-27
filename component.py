@@ -6,6 +6,8 @@ Created on Tue Sep 20 16:34:04 2022
 """
 
 
-class ComponentModel:
+class IIDComponent:
     
-    def __init__(self, )
+    def __init__(self, pdf = None, ipdf = None, ttf = None, faildist = None, failpdf = None):
+
+                    

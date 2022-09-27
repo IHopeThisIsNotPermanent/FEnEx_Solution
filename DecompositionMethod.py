@@ -35,6 +35,7 @@ HOTWIRE_TEST = {"IN":(None, 1, ("A","B"), 0),
                 "E":(FailureFunction(params = (1.2, 1230)),1,("OUT",), 1500),
                 "OUT":(None, 1, (), 0)}
 
+
 def fill(character, length, current):
     if len(current) >= length:
         return current

@@ -57,11 +57,22 @@ class FailureCount:
         if params is None:
             if choose == "Set":
                 params = 1
+                
+            if choose == "Discrete":
+                params = {0:0.5, 1:0.5}
+            
         
         if choose == "Set":
             self.sample_func = lambda : params
             self.sample_expected = lambda: params
-        
+            
+        if choose == "Discrete":
+            total = 0
+            for key in params:
+                total += params[key]
+                params[key] = total
+            self.sample_func = lambda : 1 #NOT CORRECT FIX LATER 
+            self.sample_expected = params[1]
         
     def sample(self):
         return self.sample_func()

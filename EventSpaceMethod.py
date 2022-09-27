@@ -31,6 +31,24 @@ HOTWIRE_TEST = {"IN":(None, 1, ("A","B"), 0),
                 "E":(FailureFunction(params = (1.2, 1230)),1,("OUT",), 1500),
                 "OUT":(None, 1, (), 0)}
 
+COMPLEXISH_TEST = {"IN":(None, 1, ("A","C"), 0),
+                "A":(FailureFunction(params = (1.2, 1230)),1,("B",), 1500),
+                "B":(FailureFunction(params = (1.2, 1230)),1,("E","F","G"), 1500),
+                "C":(FailureFunction(params = (1.2, 1230)),1,("D","O"), 1500),
+                "D":(FailureFunction(params = (1.2, 1230)),1,("F","G"), 1500),
+                "E":(FailureFunction(params = (1.2, 1230)),1,("H",), 1500),
+                "F":(FailureFunction(params = (1.2, 1230)),1,("H",), 1500),
+                "G":(FailureFunction(params = (1.2, 1230)),1,("I","H"), 1500),
+                "H":(FailureFunction(params = (1.2, 1230)),1,("J",), 1500),
+                "I":(FailureFunction(params = (1.2, 1230)),1,("J",), 1500),
+                "J":(FailureFunction(params = (1.2, 1230)),1,("OUT",), 1500),
+                "K":(FailureFunction(params = (1.2, 1230)),1,("J",), 1500),
+                "L":(FailureFunction(params = (1.2, 1230)),1,("K",), 1500),
+                "M":(FailureFunction(params = (1.2, 1230)),1,("K",), 1500),
+                "N":(FailureFunction(params = (1.2, 1230)),1,("M","D", "L"), 1500),
+                "O":(FailureFunction(params = (1.2, 1230)),1,("N",), 1500),
+                "OUT":(None, 1, (), 0)}
+
 def fill(character, length, current):
     if len(current) >= length:
         return current
@@ -160,8 +178,12 @@ if __name__ == "__main__":
     #Test1 = System(EXAMPLESYSTEM)
     #Test1.disp()
     #tot=Test1.sample_reliability(1)
-    Test2 = System(PARALLEL_TEST)
-    Test2.disp()
-    plt.plot([x/10 for x in range(300)], [Test2.sample_reliability(x/10) for x in range(300)])
+    #Test2 = System(PARALLEL_TEST)
+    #Test2.disp()
+    #plt.plot([x/10 for x in range(300)], [Test2.sample_reliability(x/10) for x in range(300)])
+    
+    Test3 = System(COMPLEXISH_TEST)
+    Test3.disp()
+    plt.plot([x/10 for x in range(300)], [Test3.sample_reliability(x/10) for x in range(300)])
     
     

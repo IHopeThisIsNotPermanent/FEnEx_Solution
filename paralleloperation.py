@@ -323,7 +323,7 @@ class ParallelOperation:
         plt.title("Probability of n-failures")
         plt.xlabel("Time")
         plt.ylabel("Probability of exactly n failues")
-        intg = sum([self.data[n].integral for n in range(self.n_comps)])
+        intg = sum([self.data[n].integral/((self.n_comps)**(self.n_comps - n-1)) for n in range(self.n_comps)])
         for n in range(self.n_comps):
             disp = self.data[n].vals
             plt.plot([x[0] for x in disp], [(x[1])/intg for x in disp], label = str(n+1) + " failures")
@@ -345,7 +345,7 @@ class ParallelOperation:
             
             self.arranged_data = []
             for comp in range(self.n_comps):
-                self.arranged_data.append(linfunc.linsample([x[0] for x in self.data[comp].vals], [(x[1]*(comp+1))/intg for x in self.data[comp].vals], (least, most, RESOLUTION)))
+                self.arranged_data.append(linfunc.linsample([x[0] for x in self.data[comp].vals], [x[1]/intg for x in self.data[comp].vals], (least, most, RESOLUTION)))
         
         
         plt.title("Expected impact")
@@ -372,19 +372,21 @@ if __name__ == "__main__":
     #Test1 = ParallelOperation(4,1/4, ttf = 6)
     #Test1.simulate(timeit = True)
     #Test1.summarise()
-    
+
     print("Test2, 4 components, 10000 iterations, ttf = 6, no.failures is set to 1, failure distribution is weibull")
     print("the parameters for the weibull dists are: (10,10),(10,20),(5,5),(4,5)")
     Test2 = ParallelOperation(4,1/4,comp_functions = (FailureFunction(params = (10,10)),
                                                       FailureFunction(params = (20,10)),
                                                       FailureFunction(params = (5,5)),
                                                       FailureFunction(params = (4,5))),
-                                    comp_failcounts = (FailureCount(params = 2),
-                                                       FailureCount(params = 2),
-                                                       FailureCount(params = 2),
-                                                       FailureCount(params = 2)),
+                                    comp_failcounts = (FailureCount(params = 1),
+                                                       FailureCount(params = 1),
+                                                       FailureCount(params = 1),
+                                                       FailureCount(params = 1)),
                                     ttf = 6)
     Test2.simulate(timeit = True)
     Test2.summarise()
-        
+    
+    
+
         
