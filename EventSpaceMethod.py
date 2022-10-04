@@ -32,22 +32,49 @@ HOTWIRE_TEST = {"IN":(None, 1, ("A","B"), 0),
                 "OUT":(None, 1, (), 0)}
 
 COMPLEXISH_TEST = {"IN":(None, 1, ("A","C"), 0),
-                "A":(FailureFunction(params = (1.2, 1230)),1,("B",), 1500),
-                "B":(FailureFunction(params = (1.2, 1230)),1,("E","F","G"), 1500),
-                "C":(FailureFunction(params = (1.2, 1230)),1,("D","O"), 1500),
-                "D":(FailureFunction(params = (1.2, 1230)),1,("F","G"), 1500),
-                "E":(FailureFunction(params = (1.2, 1230)),1,("H",), 1500),
-                "F":(FailureFunction(params = (1.2, 1230)),1,("H",), 1500),
-                "G":(FailureFunction(params = (1.2, 1230)),1,("I","H"), 1500),
-                "H":(FailureFunction(params = (1.2, 1230)),1,("J",), 1500),
-                "I":(FailureFunction(params = (1.2, 1230)),1,("J",), 1500),
-                "J":(FailureFunction(params = (1.2, 1230)),1,("OUT",), 1500),
-                "K":(FailureFunction(params = (1.2, 1230)),1,("J",), 1500),
-                "L":(FailureFunction(params = (1.2, 1230)),1,("K",), 1500),
-                "M":(FailureFunction(params = (1.2, 1230)),1,("K",), 1500),
-                "N":(FailureFunction(params = (1.2, 1230)),1,("M","D", "L"), 1500),
-                "O":(FailureFunction(params = (1.2, 1230)),1,("N",), 1500),
+                "A":(FailureFunction(params = (10, 12)),1,("B",), 6),
+                "B":(FailureFunction(params = (2, 12)),1,("E","F","G"), 5),
+                "C":(FailureFunction(params = (1.2, 4)),1,("D","O"), 6),
+                "D":(FailureFunction(params = (2, 5)),1,("F","G"), 4),
+                "E":(FailureFunction(params = (10, 1)),1,("H",), 6),
+                "F":(FailureFunction(params = (12, 7)),1,("H",), 2),
+                "G":(FailureFunction(params = (13, 8)),1,("I","H"), 3),
+                "H":(FailureFunction(params = (20, 2)),1,("J",), 5),
+                "I":(FailureFunction(params = (4, 10)),1,("J",), 2),
+                "J":(FailureFunction(params = (5, 13)),1,("OUT",), 6),
+                "K":(FailureFunction(params = (1.4, 14)),1,("J",), 3),
+                "L":(FailureFunction(params = (1.2, 10.2)),1,("K",), 2),
+                "M":(FailureFunction(params = (1.2, 11)),1,("K",), 1),
+                "N":(FailureFunction(params = (1.2, 12)),1,("M","D", "L"), 2),
+                "O":(FailureFunction(params = (1.2, 13)),1,("N",), 4),
                 "OUT":(None, 1, (), 0)}
+
+def DFSPaths(D, u, v):
+    visited = {}
+    for x in D:
+        visited[x] = False
+    currentPath = []
+    simplePaths = []
+    DFS(D, u, v, visited, currentPath, simplePaths)
+    return simplePaths
+
+def DFS(D, u, v, visited, currentPath, simplePaths):
+    if visited[u]:
+        return
+    visited[u] = True
+    currentPath.append(u)
+    if u == v:
+        simplePaths.append(list(currentPath))
+        visited[u] = False
+        currentPath.pop()
+        return
+    for x in D[u][2]:
+        DFS(D,x,v,visited,currentPath,simplePaths)
+    try:
+        currentPath.pop()
+    except:
+        pass
+    visited[u] = False
 
 def fill(character, length, current):
     if len(current) >= length:
@@ -107,6 +134,29 @@ class System:
         self.node_info = node_info
         
         self.efficiencies = None
+        
+        self.checklist = []
+        
+        temppaths = [[list(node_info.keys()).index(y)-1 for y in x[1:len(x)-1]] for x in DFSPaths(node_info, "IN", "OUT")]
+        
+        paths = []
+        for x in temppaths:
+            paths.append(0)
+            for i in range(len(node_info)-2):
+                paths[len(paths)-1] = paths[len(paths)-1] << 1
+                if i in x:
+                    paths[len(paths)-1] += 1
+        
+        all_paths = []
+        
+        for x in range(2**len(paths)):
+            bools = fill("0", len(paths), str(bin(x))[2:])
+            nxt = 0
+            for i,x in enumerate(bools):
+                nxt |= int(x)*paths[i]
+            all_paths.append(nxt)
+            
+        self.all_paths = list(set(all_paths))
     
     def disp(self):
         
@@ -128,11 +178,14 @@ class System:
         for i,txt in enumerate(self.node_info):
             ax.annotate(txt, (x_vals[i], y_vals[i]+0.07), ha = "center")
         
-        #plt.axis("off")
+        plt.ylim([min(y_vals)-0.07,max(y_vals)+0.14])
+        
+        plt.axis("off")
+        
         
         plt.figure()
     
-    def reliability(self, failures):
+    def reliability(self, failures): #TODO: precalcualte the reliability
         cumulation = {}
         for index, node in enumerate(self.node_info):
             cumulation[node] = [0, failures[index]]
@@ -147,9 +200,7 @@ class System:
     def sample_reliability(self,t):
         total = 0
         
-        T1 = time.time()
-        
-        for x in range(2**(len(self.node_info)-2)):
+        for x in self.all_paths: #range(2**(len(self.node_info)-2)):
             bools = fill("0", len(self.node_info)-2, str(bin(x))[2:])
             bools = "1"+bools+"1"
             bools = [int(x) for x in bools]
@@ -168,22 +219,24 @@ class System:
                 P *= inv(failfunc(t) - failfunc(t-self.node_info[node][3]))
             total += R*P
         
-        #print(time.time()-T1)
-        
         return total
     
         
 
 if __name__ == "__main__":
-    #Test1 = System(EXAMPLESYSTEM)
-    #Test1.disp()
-    #tot=Test1.sample_reliability(1)
-    #Test2 = System(PARALLEL_TEST)
-    #Test2.disp()
-    #plt.plot([x/10 for x in range(300)], [Test2.sample_reliability(x/10) for x in range(300)])
+    Test1 = System(EXAMPLESYSTEM)
+    Test1.disp()
+    plt.plot([x/10 for x in range(300)], [Test1.sample_reliability(x/10) for x in range(300)])
+    
+    Test2 = System(PARALLEL_TEST)
+    Test2.disp()
+    plt.plot([x/10 for x in range(300)], [Test2.sample_reliability(x/10) for x in range(300)])
     
     Test3 = System(COMPLEXISH_TEST)
     Test3.disp()
     plt.plot([x/10 for x in range(300)], [Test3.sample_reliability(x/10) for x in range(300)])
-    
+     
+    HotwireTest = System(HOTWIRE_TEST)
+    HotwireTest.disp()
+    plt.plot([x for x in range(1234)], [HotwireTest.sample_reliability(x) for x in range(1234)])
     
