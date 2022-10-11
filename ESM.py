@@ -99,8 +99,6 @@ class System:
     
         self.node_info = node_info
         
-        
-        
         self.all_paths = []
         
         Queue = [[1,]*(len(self.node_info)-2),]

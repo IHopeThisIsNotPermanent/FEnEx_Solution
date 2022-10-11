@@ -107,7 +107,7 @@ class GMC:
                 nxt = [0,] * fail_count
                 for r in range(fail_count):
                     start = self.node_info[node_name][1][0].sample() #sample when the failure occurs
-                    nxt[r] = FailSegment(start, start + self.node_info[node_name][1][2], 2**comp_index) #record the range it occurs at using the ttf
+                    nxt[r] = FailSegment(start, start + self.node_info[node_name][1][2], 2**comp_index) #record the range it occurs at using the ttr
                
                 nxt.sort()
                 

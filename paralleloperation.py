@@ -8,11 +8,11 @@ import matplotlib.pyplot as plt
             
 class ParallelOperation:
     def __init__(self, n_comps, comp_contribution, comp_functions = None, 
-                 comp_failcounts = None, ttf = 1):
+                 comp_failcounts = None, ttr = 1):
         """
         This class represents a set of n components in parallel. 
         The parameters you have to work with are
-        .the ttf, assumed to be the same for all components
+        .the ttr, assumed to be the same for all components
         .the distribution used to sample the fail times of each component, assumed to be the same for all comps
         .the parameters for each distribution, can be different for different components
         .the function that determines how many times a component will fail in its lifetime
@@ -33,7 +33,7 @@ class ParallelOperation:
             The functions used to determine when each component fails.
         comp_failcounts : FailureCount, optional
             The functions you want to use to sample the number of times a peice of equiptment fails.
-        ttf : float, optional
+        ttr : float, optional
             the amount of time it takes to repair a peice of equiptment. 
 
         Returns
@@ -53,7 +53,7 @@ class ParallelOperation:
         else:
             self.comp_failcount = comp_failcounts
 
-        self.ttf = ttf
+        self.ttr = ttr
         
         self.data = [SegmentGraph() for x in range(n_comps)] #self.data[0] if you fit linear segments to the data points, it will
                                                  #             tell you the number of times only 1 failure was occuing
@@ -77,7 +77,7 @@ class ParallelOperation:
                 nxt = [0,] * fail_count
                 for r in range(fail_count):
                     start = self.comp_functions[comp_index].sample() #sample when the failure occurs
-                    nxt[r] = FailSegment(start, start + self.ttf, 1) #record the range it occurs at using the ttf
+                    nxt[r] = FailSegment(start, start + self.ttr, 1) #record the range it occurs at using the ttr
                
                 nxt.sort()
                 
@@ -171,12 +171,12 @@ class ParallelOperation:
         
         
 if __name__ == "__main__":
-    #print("Test1, 4 components, 10000 iterations, ttf = 6, no.failures is set at 2, failure distribution is weibull(2,10)")
-    #Test1 = ParallelOperation(4,1/4, ttf = 6)
+    #print("Test1, 4 components, 10000 iterations, ttr = 6, no.failures is set at 2, failure distribution is weibull(2,10)")
+    #Test1 = ParallelOperation(4,1/4, ttr = 6)
     #Test1.simulate(timeit = True)
     #Test1.summarise()
 
-    print("Test2, 4 components, 10000 iterations, ttf = 6, no.failures is set to 1, failure distribution is weibull")
+    print("Test2, 4 components, 10000 iterations, ttr = 6, no.failures is set to 1, failure distribution is weibull")
     print("the parameters for the weibull dists are: (10,10),(10,20),(5,5),(4,5)")
     Test2 = ParallelOperation(4,1/4,comp_functions = (FailureFunction(params = (10,10)),
                                                       FailureFunction(params = (20,10)),
@@ -186,7 +186,7 @@ if __name__ == "__main__":
                                                        FailureCount(params = 1),
                                                        FailureCount(params = 1),
                                                        FailureCount(params = 1)),
-                                    ttf = 6)
+                                    ttr = 6)
     Test2.simulate(timeit = True)
     Test2.summarise()
     

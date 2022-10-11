@@ -13,11 +13,11 @@ import matplotlib.pyplot as plt
 
 
 class AnalyticalParallel:
-    def __init__(self, n_comps, comp_contribution, comp_functions = None, ttf = 1):
+    def __init__(self, n_comps, comp_contribution, comp_functions = None, ttr = 1):
         """
         This class represents a set of n components in parallel. 
         The parameters you have to work with are
-        .the ttf, assumed to be the same for all components
+        .the ttr, assumed to be the same for all components
         .the distribution used to sample the fail times of each component, assumed to be the same for all comps
         .the parameters for each distribution, can be different for different components
         .the function that determines how many times a component will fail in its lifetime
@@ -38,8 +38,8 @@ class AnalyticalParallel:
             The functions used to determine when each component fails.
         comp_failcounts : FailureCount, optional
             The functions you want to use to sample the number of times a peice of equiptment fails.
-        ttf : float, optional
-            the amount of time it takes to repair a peice of equiptment. 
+        ttr : float, optional
+            the amount of time it takes to repair a peice of equipment. 
 
         Returns
         -------
@@ -54,7 +54,7 @@ class AnalyticalParallel:
         else:
             self.comp_functions = comp_functions
 
-        self.ttf = ttf
+        self.ttr = ttr
         
     def iof(self, n = 1):
         return max(0, 1-(self.n_comps-n)*self.comp_contribution)
@@ -68,7 +68,7 @@ class AnalyticalParallel:
                     flip = lambda x: x
                 if x == 0:
                     flip = lambda x: 1 - x
-                temp *= flip(self.comp_functions[i].intg(t) - self.comp_functions[i].intg(t - self.ttf))
+                temp *= flip(self.comp_functions[i].intg(t) - self.comp_functions[i].intg(t - self.ttr))
             total += temp
         return total
     
@@ -105,5 +105,5 @@ if __name__ == "__main__":
     Test2 = AnalyticalParallel(4,1/4,comp_functions = (FailureFunction(params = (10,10)),
                                                       FailureFunction(params = (20,10)),
                                                       FailureFunction(params = (5,5)),
-                                                      FailureFunction(params = (4,5))), ttf = 6)
+                                                      FailureFunction(params = (4,5))), ttr = 6)
     Test2.summarise()

@@ -99,31 +99,45 @@ class System:
     
         self.node_info = node_info
         
+        #This algorith goes as follows, use the DSF algorithm to create a list of all paths
+        #Represent the paths as binaries, for example in a 3 node system, we will say if the first node is
+        #in the path set the first bit to 1, if the second node, set the second bit and so on.
+        #we then just combine all these paths by iterating through all combinations of the paths, OR-ing '
+        #together the binary representations
         
+        #get the list of paths as lists of the indexes of each node
+        temppaths = [[list(node_info.keys()).index(y)-1 for y in x[1:len(x)-1]] for x in DFSPaths(node_info, "IN", "OUT")]
         
-        self.all_paths = []
+        #convert that list of indexes into the binaries
+        paths = []
+        for x in temppaths:
+            paths.append(0)
+            for i in range(len(node_info)-2):
+                paths[len(paths)-1] = paths[len(paths)-1] << 1
+                if i in x:
+                    paths[len(paths)-1] += 1
         
-        Queue = [[1,]*(len(self.node_info)-2),]
+        all_paths = []
         
-        self.all_paths.append(tuple(Queue[0]))
+        print(len(paths))
         
-        while Queue:
-            nxt = Queue.pop(0)
-            for i in range(len(self.node_info)-2):
-                if nxt[i] == 0:
-                    continue
-                test = list(nxt)
-                test[i] = 0
-                test = tuple(test)
-                if self.path_output(test) == 0:
-                    continue
-                if test in self.all_paths:
-                    continue
-                Queue.append(test)
-                self.all_paths.append(test)
-                
+        #iterate through all combinations, OR-ing together the paths. 
+        for x in range(2**len(paths)):
+            bools = fill("0", len(paths), str(bin(x))[2:])
+            nxt = 0
+            for i,x in enumerate(bools):
+                nxt |= int(x)*paths[i]
+            all_paths.append(nxt)
         
-                    
+        #cache the paths
+        self.all_paths = list(set(all_paths))
+        self.all_paths.remove(0)
+        
+        #convert from binary to list of 1's and 0's in string form, we will never or the paths 
+        #together again, so this is just more convinient for indexing.
+        self.all_paths = [fill('0',len(self.node_info)-2,bin(x)[2:]) for x in self.all_paths]
+        
+
     
     def disp(self):
         
@@ -186,7 +200,7 @@ class System:
         for index, node in enumerate(self.node_info):
             if index == 0 or index == len(self.node_info)-1:
                 continue
-            cumulation[node] = [0, failures[index-1]]
+            cumulation[node] = [0, int(failures[index-1])]
         cumulation["IN"] = [1, 1]
         cumulation["OUT"] = [0, 1]
         
@@ -228,7 +242,7 @@ class System:
                                                           #the node is currently as the path says it should be
                 if index == 0 or index == len(self.node_info)-1: #ignore the IN, and OUT nodes
                     continue
-                if x[index-1] == 0: # if the path says the node should be failed, use the probability as given
+                if x[index-1] == '0': # if the path says the node should be failed, use the probability as given
                     inv = lambda x: x 
                 else:
                     inv = lambda x: 1 - x # otherwise do 1 - prob, because thats the probability the node has not 
@@ -246,20 +260,6 @@ class System:
         
 
 if __name__ == "__main__":
-    PARALLEL_TEST = {"IN":(None, 1, ("A","B","C","D"), 0),
-                     "A":(FailureFunction(params = (10,10)),  0.25, ("OUT",), 6),
-                     "B":(FailureFunction(params = (20,10)),  0.25, ("OUT",), 6),
-                     "C":(FailureFunction(params = (5,5)),  0.25, ("OUT",), 6),
-                     "D":(FailureFunction(params = (4,5)),  0.25, ("OUT",), 6),
-                     "OUT":(None, 1, (), 0)}
-
-    HOTWIRE_TEST = {"IN":(None, 1, ("A","B"), 0),
-                    "A":(FailureFunction(params = (1.2, 1230)),1,("C","D"), 2000),
-                    "B":(FailureFunction(params = (1.2, 1230)),1,("C","E"), 2000),
-                    "C":(FailureFunction(params = (1.2, 1230)),1,("D","E"), 2000),
-                    "D":(FailureFunction(params = (1.2, 1230)),1,("OUT",), 2000),
-                    "E":(FailureFunction(params = (1.2, 1230)),1,("OUT",), 2000),
-                    "OUT":(None, 1, (), 0)}
 
     COMPLEXISH_TEST = {"IN":(None, 1, ("A","C"), 0),
                     "A":(FailureFunction(params = (10, 12)),1,("B",), 6),
@@ -279,50 +279,11 @@ if __name__ == "__main__":
                     "O":(FailureFunction(params = (1.2, 13)),1,("N",), 4),
                     "OUT":(None, 1, (), 0)}
 
-    if True: #Plot Tests
+
+    Test3 = System(COMPLEXISH_TEST)
+    Test3.disp()
+    plt.title("Expected Impact for COMPLEXISH_TEST")
+    plt.xlabel("Time")
+    plt.ylabel("Efficiency")
+    plt.plot([x/10 for x in range(300)], [Test3.sample_reliability(x/10) for x in range(300)])
         
-        Test2 = System(PARALLEL_TEST)
-        Test2.disp()
-        plt.title("Expected Impact for PARALLEL_TEST")
-        plt.xlabel("Time")
-        plt.ylabel("Efficiency")
-        plt.plot([x/10 for x in range(300)], [Test2.sample_reliability(x/10) for x in range(300)])
-        
-        HotwireTest = System(HOTWIRE_TEST)
-        HotwireTest.disp()
-        print("This system is the system from the webpage: https://weibull.com/hotwire/issue3/hottopics3.htm")
-        print("The page also has a table of results at the bottom that are the values they got")
-        print("The values from the table matched to the values from this model:")
-        reliabilites = [1,0.9950,0.9748,0.9374,0.8823,0.8184,0.7419,0.6621,0.5816,0.5038,0.4332,0.3683,0.3087,0.2565,0.2121,0.1738]
-        for i,n in enumerate(reliabilites):
-            print("t = ", i*100, "their value = ", n, "our values = ", HotwireTest.sample_reliability(i*100))
-
-        Test3 = System(COMPLEXISH_TEST)
-        Test3.disp()
-        plt.title("Expected Impact for COMPLEXISH_TEST")
-        plt.xlabel("Time")
-        plt.ylabel("Efficiency")
-        plt.plot([x/10 for x in range(300)], [Test3.sample_reliability(x/10) for x in range(300)])
-    
-    PARALLEL_CONST = {"IN":(None, 1, ("A","B","C","D"), 0),
-                     "A":(FailureFunction(choose = "Constant", params = (0.3,1)),  1, ("OUT",), 1),
-                     "B":(FailureFunction(choose = "Constant", params = (0.2,1)),  1, ("OUT",), 1),
-                     "C":(FailureFunction(choose = "Constant", params = (0.1,1)),  1, ("OUT",), 1),
-                     "OUT":(None, 1, (), 0)}
-
-    SERIES_CONST = {"IN":(None, 1, ("A","B","C","D"), 0),
-                     "A":(FailureFunction(choose = "Constant", params = (0.5,1)),  1, ("B",), 1),
-                     "B":(FailureFunction(choose = "Constant", params = (0.2,1)),  1, ("C",), 1),
-                     "C":(FailureFunction(choose = "Constant", params = (0.1,1)),  1, ("OUT",), 1),
-                     "OUT":(None, 1, (), 0)}
-    
-    COMPLEX_CONST = {"IN":(None, 1, ("A","B"), 0),
-                    "A":(FailureFunction(choose = "Constant", params = (0.5,1)),1,("C","D"), 1),
-                    "B":(FailureFunction(choose = "Constant", params = (0.5,1)),1,("C","E"), 1),
-                    "C":(FailureFunction(choose = "Constant", params = (0.5,1)),1,("D","E"), 1),
-                    "D":(FailureFunction(choose = "Constant", params = (0.5,1)),1,("OUT",), 1),
-                    "E":(FailureFunction(choose = "Constant", params = (0.5,1)),1,("OUT",), 1),
-                    "OUT":(None, 1, (), 0)}
-
-    if False:# Constant Tests
-        Contst_Test1 = System
