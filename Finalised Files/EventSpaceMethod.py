@@ -49,8 +49,8 @@ class System:
         ----------
         node_info : dict
             a mapping of each {node_name: (failfunc, contribution, node list, TTR)}
-            node_info must contain "IN":(0, None, None, 1,  (nodes connected to In))
-                               and "OUT":(0, None, None, 1, ())
+            node_info must contain "IN":(None, 1, (nodes connected to In), 0)
+                               and "OUT":(None, 1, (), 0)
 
         Returns
         -------
@@ -279,7 +279,7 @@ if __name__ == "__main__":
                     "O":(FailureFunction(params = (1.2, 13)),1,("N",), 4),
                     "OUT":(None, 1, (), 0)}
 
-    if True: #Plot Tests
+    if False: #Plot Tests
         
         Test2 = System(PARALLEL_TEST)
         Test2.disp()
