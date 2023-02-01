@@ -287,7 +287,7 @@ if __name__ == "__main__":
         plt.show()
         plt.figure()
     
-    if False:
+    if True:
         TEST2 = GMC(COMPLEXISH_TEST, (0, 30, 300))
         TEST2.disp()
         TEST2.simulate(n = 10000)
