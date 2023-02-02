@@ -1,0 +1,12 @@
+Component,Runtime,Planned,Availability,Uterlisation,Loading,Capacity,BlockID,Skips_To
+OHP1,,0.05,0.95,0.75,0.85,5000,Source,
+ship_loader_1,,0.05,0.95,0.75,0.85,2000,By-pass ship loader,Sink
+stacker1,,0.05,0.95,0.75,0.85,1000,Stackers,
+stacker2,,0.05,0.95,0.75,0.85,2000,Stackers,
+stacker3,,0.05,0.95,0.75,0.85,2000,Stackers,
+1_stockpile,,0.05,0.95,0.75,0.85,2000,Stockpile,
+relaimer1,,0.05,0.95,0.75,0.85,1000,Reclaimer,
+reclaimer2,,0.05,0.95,0.75,0.85,1000,Reclaimer,
+reclaimer3,,0.05,0.95,0.75,0.85,1000,Reclaimer,
+reclaimer5,,0.05,0.95,0.75,0.85,2000,Reclaimer,
+sink1,,,,,,,Sink,
