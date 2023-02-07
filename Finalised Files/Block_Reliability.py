@@ -1,6 +1,20 @@
 import csv
 import numpy as np
 import itertools
+import math
+
+from functools import lru_cache
+
+def srt(x):
+    x.sort()
+    return x
+
+def int2bin(n, length):
+    if n == 0:
+        m = 1
+    else:
+        m = n
+    return [0,]*(length-math.ceil(math.log(m+1)/math.log(2)))+[int(x) for x in str(bin(n))[2:]]
 
 class handle_csv:
     def __init__(self, filename = 'example_model.csv'):
@@ -45,9 +59,30 @@ class handle_csv:
             if not (label, component["BlockID"]) in block_list:
                 block_list[(label, component["BlockID"])] = []
                 
-            block_list[(label, component["BlockID"])].append((component["Component"], Cap, POF))
+            block_list[(label, component["BlockID"])].append((component["Component"], Cap, 1-POF))
         
         self.system = System(block_list)
+        
+    def generate_throughput_table(self, depth, warning = False):
+        """
+        Parameters
+        ----------
+        depth : int
+            for each layer, how many can be offline at any given time
+        warning : boolean, OPTIONAL
+            depending on the depth, and number of nodes, the operation may take a very long time,
+            and/or create a very large file select true to get a warning of the time it will take.
+            The default is False.
+
+        Returns
+        None.
+
+        """
+        
+        
+        
+        
+        
         
 
 class System:
@@ -67,11 +102,14 @@ class System:
         self.machine_values = np.array([list(itertools.chain.from_iterable([[machine[1] for machine in self.block_list[block]] for block in self.block_list])), #Cap
                                         list(itertools.chain.from_iterable([[machine[2] for machine in self.block_list[block]] for block in self.block_list]))])#POF
         
+        # This section of code sets up the windows used in the sample_total_throughput function
+        
         self.R1_sum_blocks = [] 
         
         self.R1_min_blocks = [[0,]]
         
         self.R2_sum_blocks = [[0,]]
+        
         
         R1_sum_index = 0
         R1_min_index = 0
@@ -117,6 +155,33 @@ class System:
         
         self.IOF_calced = False
         self.IOF = {}
+        
+        # This code sets up the block info for the sample_reliability function
+        
+        self.block_reliability_dist = {}
+        
+        for block in self.block_list:
+            self.block_reliability_dist[block[1]] = {}
+            block_count = len(self.block_list[block])
+            for configuration in range(2**block_count):
+                mask = tuple(int2bin(configuration, block_count))
+                self.block_reliability_dist[block[1]][mask] = {}
+                new_selection = []
+                for v, c in zip(self.block_list[block], mask):
+                    if c == 0:
+                        continue
+                    new_selection.append((v[1], v[2]))
+                #print(block[1], new_selection)
+                for combination in range(2**len(new_selection)):
+                    com_mask = int2bin(combination, len(new_selection))
+                    new_val = sum(np.multiply(com_mask, [x[0] for x in new_selection]))
+                    if not new_val in self.block_reliability_dist[block[1]][mask]: 
+                        self.block_reliability_dist[block[1]][mask][new_val] = 0
+                    self.block_reliability_dist[block[1]][mask][new_val] += np.prod(np.abs(np.array([x[1] for x in new_selection])-np.array(com_mask)))
+                
+        
+        
+        
     
     def sample_total_throughput(self, failures):
         """
@@ -141,9 +206,46 @@ class System:
         
         return min(R2_sums)
         
+    
         
+    def combine_operation(dist_1, dist_2):
+        Options = {}
+        for M1 in dist_1:
+            for M2 in dist_2:
+                nxt = M1 + M2
+                if not nxt in Options:
+                    Options[nxt] = 0
+                Options[nxt] += dist_1[M1]*dist_2[M2]
+        Options = {x:Options[x] for x in srt(list(Options))}
+        return Options
+        
+        
+    def following_operation(dist_1, dist_2):
+        Options = []
+        total_min = min(max(dist_1), max(dist_2))
+        for M1 in dist_1:
+            if M1 > total_min:
+                break
+            Options.append(M1)
+        for M2 in dist_2:
+            if M2 > total_min:
+                break
+            if M2 in Options:
+                continue
+            Options.append(M2)
+        Options = {x:0 for x in srt(Options)}
+        for M1 in dist_1:
+            for M2 in dist_2:
+                if M1 == M2:
+                    Options[M1] += dist_1[M1]*dist_2[M2]
+                if M1 > M2:
+                    Options[M2] += dist_1[M1]*dist_2[M2]
+                if M2 > M1:
+                    Options[M1] += dist_1[M1]*dist_2[M2]
+        
+        return Options
 
-    def sample_IOF(self, failures):
+    def sample_POC(self, failures):
         """
         Parameters
         ----------
@@ -152,15 +254,18 @@ class System:
 
         Returns
         -------
-        The expected impact to throughput due to failure
+        The probability that the system is in this configuration
 
         """
         
         mask = failures
-        vals = np.multipy(mask, self.machine_values)
-
-
-
+        vals = np.abs(self.machine_values[1] - mask)
+        return np.prod(vals)
+        
+        
+        
+        
+        
 if __name__ == "__main__":
     test = handle_csv()
 
