@@ -16,6 +16,17 @@ def int2bin(n, length):
         m = n
     return [0,]*(length-math.ceil(math.log(m+1)/math.log(2)))+[int(x) for x in str(bin(n))[2:]]
 
+class Binary_Operation_Tree:
+    def __init__(self, operation, data, node_1, node_2 = None):
+        self.operation = operation
+        self.node_1 = node_1
+        self.node_2 = node_2
+        
+    def calculate(self):
+        if self.node_2 == None:
+            return self.data[self.node_1]
+        return self.operation(self.node_1.calculate(), self.node_2.calculate())
+
 class handle_csv:
     def __init__(self, filename = 'example_model.csv'):
         self.components = {}
@@ -78,11 +89,6 @@ class handle_csv:
         None.
 
         """
-        
-        
-        
-        
-        
         
 
 class System:
@@ -161,28 +167,31 @@ class System:
         self.block_reliability_dist = {}
         
         for block in self.block_list:
+            if block[0] == "Skip End":
+                continue
             self.block_reliability_dist[block[1]] = {}
-            block_count = len(self.block_list[block])
-            for configuration in range(2**block_count):
-                mask = tuple(int2bin(configuration, block_count))
+            machine_count = len(self.block_list[block])
+            for configuration in range(2**machine_count):
+                mask = tuple(int2bin(configuration, machine_count))
                 self.block_reliability_dist[block[1]][mask] = {}
                 new_selection = []
                 for v, c in zip(self.block_list[block], mask):
                     if c == 0:
                         continue
                     new_selection.append((v[1], v[2]))
-                #print(block[1], new_selection)
                 for combination in range(2**len(new_selection)):
                     com_mask = int2bin(combination, len(new_selection))
                     new_val = sum(np.multiply(com_mask, [x[0] for x in new_selection]))
                     if not new_val in self.block_reliability_dist[block[1]][mask]: 
                         self.block_reliability_dist[block[1]][mask][new_val] = 0
                     self.block_reliability_dist[block[1]][mask][new_val] += np.prod(np.abs(np.array([x[1] for x in new_selection])-np.array(com_mask)))
-                
+        
+    def construct_operation_tree(self, block_index, skip_ID = None, skip_chain = False):
+        pass
+        #Where > is follow operation, and V is combine operation, the basic example should be:
+        #OHP1>(SHIP_LOADER V (STACKER>(STOCKPILE>RECLAIMER)))
         
         
-        
-    
     def sample_total_throughput(self, failures):
         """
         Takes around 1.2 seconds to complete 100000 calcultions
