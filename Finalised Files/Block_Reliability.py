@@ -19,13 +19,35 @@ def int2bin(n, length):
 class Binary_Operation_Tree:
     def __init__(self, operation, data, node_1, node_2 = None):
         self.operation = operation
+        self.data = data
         self.node_1 = node_1
         self.node_2 = node_2
         
-    def calculate(self):
-        if self.node_2 == None:
-            return self.data[self.node_1]
-        return self.operation(self.node_1.calculate(), self.node_2.calculate())
+    def __str__(self):
+        if self.node_2 is None:
+            return "("+str(self.node_1)+")"
+        
+        else:
+            return "("+ str(self.node_1) + {System.combine_operation:"V", System.following_operation:">"}[self.operation] + str(self.node_2) +")"
+        
+    def calculate(self, options):
+        print(self.node_1, self.node_2, self.operation)
+        if self.node_2 is None:
+            return self.data[list(self.data.keys())[self.node_1]][options[self.node_1]]
+        
+        if type(self.node_1) == Binary_Operation_Tree:
+            N1 = self.node_1.calculate(options)
+        elif type(self.node_1) == int:
+            N1 = self.data[list(self.data.keys())[self.node_1]][options[self.node_1]]
+        else:
+            N1 = self.node_1
+        if type(self.node_2) == Binary_Operation_Tree:
+                N2 = self.node_2.calculate(options)
+        elif type(self.node_2) == int:
+            N2 = self.data[list(self.data.keys())[self.node_2]][options[self.node_2]]
+        else:
+            N2 = self.node_2
+        return self.operation(N1, N2)
 
 class handle_csv:
     def __init__(self, filename = 'example_model.csv'):
@@ -54,6 +76,9 @@ class handle_csv:
             if component["Skips_To"] != '':
                 Skip_start = component["BlockID"]
                 Skip_end = component["Skips_To"]
+                label = "Skip Start"
+                
+            if component["BlockID"] == Skip_start:
                 label = "Skip Start"
                 
             if not Skip_end is None: 
@@ -167,8 +192,6 @@ class System:
         self.block_reliability_dist = {}
         
         for block in self.block_list:
-            if block[0] == "Skip End":
-                continue
             self.block_reliability_dist[block[1]] = {}
             machine_count = len(self.block_list[block])
             for configuration in range(2**machine_count):
@@ -186,15 +209,80 @@ class System:
                         self.block_reliability_dist[block[1]][mask][new_val] = 0
                     self.block_reliability_dist[block[1]][mask][new_val] += np.prod(np.abs(np.array([x[1] for x in new_selection])-np.array(com_mask)))
         
-    def construct_operation_tree(self, block_index, skip_ID = None, skip_chain = False):
-        pass
+        self.block_index = -1
+        
+        self.skip_ID = None
+        
+        self.operation_tree = self.construct_operation_tree()
+        
+    def prop_branch(self):
+        
+        return Binary_Operation_Tree(System.following_operation, self.block_reliability_dist, self.block_index, self.construct_operation_tree())
+        
+    def construct_operation_tree(self):
+        #if we start a skip_chain
+        
+        print(self.block_index, self.skip_ID)
+        
+        #if we get to the end
+        if not self.skip_ID is None:
+            if list(self.block_list.keys())[self.block_index+1][0] == "Skip End":
+                print("i should see this at block_index 13")
+                self.skip_ID = None
+                self.block_index += 1
+                return Binary_Operation_Tree(None, self.block_reliability_dist, self.block_index-1)
+        
+        self.block_index += 1
+        
+        if self.block_index >= len(self.block_list)-1:
+            return Binary_Operation_Tree(None, self.block_reliability_dist, self.block_index)
+        
+        
+        
+        if list(self.block_list.keys())[self.block_index][0] == "Skip Start" and self.skip_ID is None:
+            self.skip_ID = list(self.block_list.keys())[self.block_index][1]
+            #if it is a one block skip
+            if list(self.block_list.keys())[self.block_index+1][0] != "Skip Start":
+                print("i should see this")
+                skip_branch = Binary_Operation_Tree(None, self.block_reliability_dist, self.block_index)
+                self.block_index += 1
+            else: #if it is not a one block skip
+                print("i should never see this")
+                skip_branch = self.prop_branch()
+            if list(self.block_list.keys())[len(self.block_list)-1][0] == "Skip End": #if for some ungodly reason the final node is a skip end
+                print("i should not see this")
+                main_branch = self.prop_branch()
+                self.skip_ID = None
+                return Binary_Operation_Tree(System.combine_operation, self.block_reliability_dist, skip_branch, main_branch)
+            
+            main_branch = self.construct_operation_tree()
+            continuation = self.construct_operation_tree()
+            return Binary_Operation_Tree(System.following_operation, self.block_reliability_dist,
+                                         Binary_Operation_Tree(System.combine_operation, self.block_reliability_dist, skip_branch, main_branch),
+                                             continuation)
+            
+        if list(self.block_list.keys())[self.block_index][0] == "Skip Start" and not self.skip_ID is None:
+            #if this is the last block
+            if list(self.block_list.keys())[self.block_index+1][0] != "Skip Start":
+                return Binary_Operation_Tree(None, self.block_reliability_dist, self.block_index)
+            else:
+                return self.prop_branch()
+        
+        return self.prop_branch()
+            
+        
+        
+        
+        
         #Where > is follow operation, and V is combine operation, the basic example should be:
         #OHP1>(SHIP_LOADER V (STACKER>(STOCKPILE>RECLAIMER)))
         
         
     def sample_total_throughput(self, failures):
         """
-        Takes around 1.2 seconds to complete 100000 calcultions
+        Takes around 1.2 seconds to complete 100000 iterations of the basic one (10 machines)
+        Takes around 3.4 seconds to complete 100000 iterations of the more complex one (41 machines)
+        We expect the complexity to increase linearly.
 
         Parameters
         ----------
@@ -254,6 +342,33 @@ class System:
         
         return Options
 
+    def sample_reliability(self, failures):
+        """
+        runs 100000 iterations in 5.76 seconds with the basic model
+
+        Parameters
+        ----------
+        failures : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        TYPE
+            DESCRIPTION.
+
+        """
+        options = []
+        index = 0
+        block_index = 0
+        while index < len(self.machine_values[0]):
+            nxt = len(self.block_list[list(self.block_list.keys())[block_index]])
+            options.append(tuple(failures[index:index+nxt]))
+            index += nxt
+            block_index += 1
+        print(options)
+        return self.operation_tree.calculate(options)
+        
+
     def sample_POC(self, failures):
         """
         Parameters
@@ -271,12 +386,12 @@ class System:
         vals = np.abs(self.machine_values[1] - mask)
         return np.prod(vals)
         
-        
-        
+    
         
         
 if __name__ == "__main__":
-    test = handle_csv()
+    #test = handle_csv()
+    test2 = handle_csv("example_model2.csv")
 
 
 
