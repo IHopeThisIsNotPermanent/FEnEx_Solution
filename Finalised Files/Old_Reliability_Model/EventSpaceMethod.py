@@ -304,10 +304,10 @@ if __name__ == "__main__":
         plt.ylabel("Efficiency")
         plt.plot([x/10 for x in range(300)], [Test3.sample_reliability(x/10) for x in range(300)])
     
-    PARALLEL_CONST = {"IN":(None, 1, ("A","B","C","D"), 0),
-                     "A":(FailureFunction(choose = "Constant", params = (0.3,1)),  1, ("OUT",), 1),
-                     "B":(FailureFunction(choose = "Constant", params = (0.2,1)),  1, ("OUT",), 1),
-                     "C":(FailureFunction(choose = "Constant", params = (0.1,1)),  1, ("OUT",), 1),
+    PARALLEL_CONST = {"IN":(None, 1, ("A","B","C"), 0),
+                     "A":(FailureFunction(choose = "Constant", params = (0.5,1)),  1, ("OUT",), 1),
+                     "B":(FailureFunction(choose = "Constant", params = (0.4,1)),  1, ("OUT",), 1),
+                     "C":(FailureFunction(choose = "Constant", params = (0.2,1)),  1, ("OUT",), 1),
                      "OUT":(None, 1, (), 0)}
 
     SERIES_CONST = {"IN":(None, 1, ("A","B","C","D"), 0),
@@ -323,6 +323,17 @@ if __name__ == "__main__":
                     "D":(FailureFunction(choose = "Constant", params = (0.5,1)),1,("OUT",), 1),
                     "E":(FailureFunction(choose = "Constant", params = (0.5,1)),1,("OUT",), 1),
                     "OUT":(None, 1, (), 0)}
+    
+    NEW_TEST = {"IN":(None, 1, ("A","B"), 0),
+                "A":(FailureFunction(choose = "Constant", params = (0.5,1)),1,("C",), 1),
+                "B":(FailureFunction(choose = "Constant", params = (0.999,1)),1,("C","D"), 1),
+                "C":(FailureFunction(choose = "Constant", params = (0.2,1)),1,("OUT",), 1),
+                "D":(FailureFunction(choose = "Constant", params = (0.5,1)),1,("OUT",), 1),
+                "OUT":(None, 1, (), 0)}
 
-    if False:# Constant Tests
-        Contst_Test1 = System
+    if True:# Constant Tests
+        Contst_Test1 = System(PARALLEL_CONST)
+        print(Contst_Test1.sample_reliability(1))
+        
+        
+        

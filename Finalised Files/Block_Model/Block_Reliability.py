@@ -3,8 +3,6 @@ import numpy as np
 import itertools
 import math
 
-from functools import lru_cache
-
 def srt(x):
     x.sort()
     return x
@@ -16,41 +14,25 @@ def int2bin(n, length):
         m = n
     return [0,]*(length-math.ceil(math.log(m+1)/math.log(2)))+[int(x) for x in str(bin(n))[2:]]
 
-class Binary_Operation_Tree:
-    def __init__(self, operation, data, node_1, node_2 = None):
-        self.operation = operation
-        self.data = data
-        self.node_1 = node_1
-        self.node_2 = node_2
-        
-    def __str__(self):
-        if self.node_2 is None:
-            return "("+str(self.node_1)+")"
-        
-        else:
-            return "("+ str(self.node_1) + {System.combine_operation:"V", System.following_operation:">"}[self.operation] + str(self.node_2) +")"
-        
-    def calculate(self, options):
-        print(self.node_1, self.node_2, self.operation)
-        if self.node_2 is None:
-            return self.data[list(self.data.keys())[self.node_1]][options[self.node_1]]
-        
-        if type(self.node_1) == Binary_Operation_Tree:
-            N1 = self.node_1.calculate(options)
-        elif type(self.node_1) == int:
-            N1 = self.data[list(self.data.keys())[self.node_1]][options[self.node_1]]
-        else:
-            N1 = self.node_1
-        if type(self.node_2) == Binary_Operation_Tree:
-                N2 = self.node_2.calculate(options)
-        elif type(self.node_2) == int:
-            N2 = self.data[list(self.data.keys())[self.node_2]][options[self.node_2]]
-        else:
-            N2 = self.node_2
-        return self.operation(N1, N2)
-
 class handle_csv:
+    """
+    Handle csv is the class used to handle the input and output of the csv files that represent the block systems
+    
+    """
     def __init__(self, filename = 'example_model.csv'):
+        """
+        
+
+        Parameters
+        ----------
+        filename : string, optional
+            the file name or path to the csv file you wish to load. The default is 'example_model.csv'.
+
+        Returns
+        -------
+        None.
+
+        """
         self.components = {}
         with open(filename, mode = 'r') as file:
             File = csv.reader(file)
@@ -126,14 +108,39 @@ class System:
             or
             tuples containing ("Skip Start", "Skip id") :[(MachineID, Capacity, POF), ...]
             with a corresponding ("Skip End", "Skip id") : [] when it ends
+            The entries must be ordered as they are connected.
         """
         
         self.block_list = block_list
         
-        self.machine_values = np.array([list(itertools.chain.from_iterable([[machine[1] for machine in self.block_list[block]] for block in self.block_list])), #Cap
+        #this array contains the two important parameters for each machine, indexed at the index of the machine
+        self.machine_values = np.array([list(itertools.chain.from_iterable([[machine[1] for machine in self.block_list[block]] for block in self.block_list])), #Capacity
                                         list(itertools.chain.from_iterable([[machine[2] for machine in self.block_list[block]] for block in self.block_list]))])#POF
         
         # This section of code sets up the windows used in the sample_total_throughput function
+        
+        # The way these work is like so, if we take the example_model, and line up all its machines you get this:
+        
+        #OHP1, Ship_loader_1, Stacker_1, Stacker_2, Stacker_3, Stockpile_1, Relcaimer_1, Reclaimer_2, Reclaimer_3, Sink_1
+        
+        #We want to start by summing up the capacities of each of the blocks, so we do that with the R1_sum_index windows, this will create a list of 
+        #different length, which we need to keep in mind, the windows for this will be:
+            
+        #R1_sum_blocks = [[0,1],[1,2],[2,5],[5,6],[7,9],[9,10]]
+        
+        #we then need to find the minimum of each chain of blocks, there are 4 chains here, the first is OHP1, the second is the shiploader chain, 
+        #the third is the stacker, stockpile, reclaimer chain, and the third is the sink chain. R1_min_blocks finds the ranges of blocks we need to 
+        #min for this, in this example the windows for this will be: 
+            
+        #R1_min_blocks = [[0,1],[1,2],[2,5],[5,6]]
+        
+        #Because the output of the two chains that run parallel when a skip is occuring need to be recombined at the other side, we then need to sum these two
+        #chains together, so the windows in this example will be: 
+            
+        #R2_sum_blocks = [[0,1],[1,3],[3,4]]
+        
+        #we then find the min of these blocks to get the output of the system
+        
         
         self.R1_sum_blocks = [] 
         
@@ -189,9 +196,20 @@ class System:
         
         # This code sets up the block info for the sample_reliability function
         
+        #Block reliability distribution is a map that maps block and configuration to the output distribution. 
+        
+        #for example, you may have a block called "Stacker_Block_1", and it has 5 machines, and each one has a %50 of functioning, and a capacity of 1
+        #and we have taken out the first and last machine for maintainence, to get the output distribution we would use: 
+        #self.block_reliability_dist[""Stacker_Block_1""][(0,1,1,1,0)].
+        #in this case it will return : {0: 0.125, 1: 0.375, 2: 0.375, 3: 0.125,}
+        #the way you read this map, is the key is the throughput of the block, and the value is probability of that throughput
+        
         self.block_reliability_dist = {}
         
         for block in self.block_list:
+            if block[0] == "Skip End":
+                self.block_reliability_dist[block[1]+"_end"] = {(0,) : {0.0: 1.0}}
+                continue
             self.block_reliability_dist[block[1]] = {}
             machine_count = len(self.block_list[block])
             for configuration in range(2**machine_count):
@@ -208,74 +226,6 @@ class System:
                     if not new_val in self.block_reliability_dist[block[1]][mask]: 
                         self.block_reliability_dist[block[1]][mask][new_val] = 0
                     self.block_reliability_dist[block[1]][mask][new_val] += np.prod(np.abs(np.array([x[1] for x in new_selection])-np.array(com_mask)))
-        
-        self.block_index = -1
-        
-        self.skip_ID = None
-        
-        self.operation_tree = self.construct_operation_tree()
-        
-    def prop_branch(self):
-        
-        return Binary_Operation_Tree(System.following_operation, self.block_reliability_dist, self.block_index, self.construct_operation_tree())
-        
-    def construct_operation_tree(self):
-        #if we start a skip_chain
-        
-        print(self.block_index, self.skip_ID)
-        
-        #if we get to the end
-        if not self.skip_ID is None:
-            if list(self.block_list.keys())[self.block_index+1][0] == "Skip End":
-                print("i should see this at block_index 13")
-                self.skip_ID = None
-                self.block_index += 1
-                return Binary_Operation_Tree(None, self.block_reliability_dist, self.block_index-1)
-        
-        self.block_index += 1
-        
-        if self.block_index >= len(self.block_list)-1:
-            return Binary_Operation_Tree(None, self.block_reliability_dist, self.block_index)
-        
-        
-        
-        if list(self.block_list.keys())[self.block_index][0] == "Skip Start" and self.skip_ID is None:
-            self.skip_ID = list(self.block_list.keys())[self.block_index][1]
-            #if it is a one block skip
-            if list(self.block_list.keys())[self.block_index+1][0] != "Skip Start":
-                print("i should see this")
-                skip_branch = Binary_Operation_Tree(None, self.block_reliability_dist, self.block_index)
-                self.block_index += 1
-            else: #if it is not a one block skip
-                print("i should never see this")
-                skip_branch = self.prop_branch()
-            if list(self.block_list.keys())[len(self.block_list)-1][0] == "Skip End": #if for some ungodly reason the final node is a skip end
-                print("i should not see this")
-                main_branch = self.prop_branch()
-                self.skip_ID = None
-                return Binary_Operation_Tree(System.combine_operation, self.block_reliability_dist, skip_branch, main_branch)
-            
-            main_branch = self.construct_operation_tree()
-            continuation = self.construct_operation_tree()
-            return Binary_Operation_Tree(System.following_operation, self.block_reliability_dist,
-                                         Binary_Operation_Tree(System.combine_operation, self.block_reliability_dist, skip_branch, main_branch),
-                                             continuation)
-            
-        if list(self.block_list.keys())[self.block_index][0] == "Skip Start" and not self.skip_ID is None:
-            #if this is the last block
-            if list(self.block_list.keys())[self.block_index+1][0] != "Skip Start":
-                return Binary_Operation_Tree(None, self.block_reliability_dist, self.block_index)
-            else:
-                return self.prop_branch()
-        
-        return self.prop_branch()
-            
-        
-        
-        
-        
-        #Where > is follow operation, and V is combine operation, the basic example should be:
-        #OHP1>(SHIP_LOADER V (STACKER>(STOCKPILE>RECLAIMER)))
         
         
     def sample_total_throughput(self, failures):
@@ -306,6 +256,22 @@ class System:
     
         
     def combine_operation(dist_1, dist_2):
+        """
+        This function is used to calcualte the throughput of two throughput distributions in parallel, being combined
+
+        Parameters
+        ----------
+        dist_1 : map
+            the first throughput distirbution 
+        dist_2 : map
+            the second throughput distirbution 
+
+        Returns
+        -------
+        Options : map
+            the resulting throughput distribution
+
+        """
         Options = {}
         for M1 in dist_1:
             for M2 in dist_2:
@@ -318,6 +284,22 @@ class System:
         
         
     def following_operation(dist_1, dist_2):
+        """
+        This function is used to calcualte the throughput of two throughput distributions in series
+
+        Parameters
+        ----------
+        dist_1 : map
+            the first throughput distirbution 
+        dist_2 : map
+            the second throughput distirbution 
+
+        Returns
+        -------
+        Options : map
+            the resulting throughput distribution
+
+        """
         Options = []
         total_min = min(max(dist_1), max(dist_2))
         for M1 in dist_1:
@@ -344,19 +326,30 @@ class System:
 
     def sample_reliability(self, failures):
         """
-        runs 100000 iterations in 5.76 seconds with the basic model
-
+        Sample reliability returns the throughput distribution, given a failures list.
+        
+        runs 100000 iterations in 2.25 seconds with the basic model (10 machines)
+        runs 100000 iterations in 37.68 deconds for the more complex model (41 machines)
+        runs 100000 iterations in 167.33 seconds for the even more complex model (83 machines)
+        
+        If this becomes an issue there is another way of doing this that speeds it up for more complex examples.
+        
         Parameters
         ----------
-        failures : TYPE
-            DESCRIPTION.
+        failures : tuple(int)
+            The list of failures/machines being repaired, 0 indicates that it is not currently in operation, and 1 otherwise.
 
         Returns
         -------
-        TYPE
-            DESCRIPTION.
+        map
+            returns a map in the same format that block_reliability_dist has, where the keys are the throughput, and the value is the 
+            probability of that throughput
 
         """
+        
+        #Options is just the slives of the failures that correspond to each block, so options[0] would return something like (1,0,1), which are is
+        #the slice of the failues list that corresponds to the first blocks machines, of which in this case there are 3.
+        
         options = []
         index = 0
         block_index = 0
@@ -365,9 +358,77 @@ class System:
             options.append(tuple(failures[index:index+nxt]))
             index += nxt
             block_index += 1
-        print(options)
-        return self.operation_tree.calculate(options)
         
+        #This algorithm works by keeping track of 3 paths, the main, the continuation, and the skip path.
+        #If we are not currently up to a block which is either skipped over, or a skip block, we just use the 
+        #following function to add the next block to the main path,
+        #if we are in a skip block, we add it to the skip path, and if a block is currently being skipped over, we add
+        #it to the continuation path.
+        #if we get to the end of a skip path, we combine the two paths, then use the following function to add it back to the 
+        #main path.
+        
+        Main_Path = self.block_reliability_dist[list(self.block_reliability_dist.keys())[0]][options[0]]
+        Continuation = {}
+        Continuation_Stockpiled = False
+        Skip = {}
+        Skip_Stockpiled = False
+        Skipping = False
+        
+        for block_index, block in enumerate(list(self.block_list.keys())[1:]):
+            
+            if Skipping == True and block[0] == "Skip End": #if we reach the end of the skip 
+                if Continuation_Stockpiled == False and Skip_Stockpiled == False:
+                    Continuation = System.combine_operation(Continuation, Skip)
+                    Main_Path = System.following_operation(Main_Path, Continuation)
+                if Continuation_Stockpiled == True and Skip_Stockpiled == False:
+                    Main_Path = System.following_operation(Main_Path, Skip)
+                    Main_Path = System.combine_operation(Main_Path, Continuation)
+                if Continuation_Stockpiled == False and Skip_Stockpiled == True:
+                    Main_Path = System.following_operation(Main_Path, Continuation)
+                    Main_Path = System.combine_operation(Main_Path, Skip)
+                if Continuation_Stockpiled == True and Skip_Stockpiled == True:
+                    Main_Path = System.combine_operation(Skip, Continuation)
+                    
+                Continuation = {}
+                Continuation_Stockpiled = False
+                Skip = {}
+                Skip_Stockpiled = False
+                Skipping = False
+                
+                continue
+            
+            block_index += 1
+            nxt_dist = self.block_reliability_dist[block[1]][options[block_index]]
+            
+            if Skipping == False and block[0] != "Skip Start":
+                if block[1][:9] == "Stockpile":
+                    Main_Path = nxt_dist
+                else:
+                    Main_Path = System.following_operation(Main_Path, nxt_dist)
+                    
+            if block[0] == "Skip Start":
+                if block[1][:9] == "Stockpile":
+                    Skip_Stockpiled = True
+                if Skipping == False:
+                    Skip = nxt_dist
+                if Skipping == True :
+                    if block[1][:9] == "Stockpile":
+                        Skip = nxt_dist
+                    else:
+                        Skip = System.following_operation(Skip, nxt_dist)
+                Skipping = True
+                        
+            if Skipping == True and block[0] == "Block":
+                if block[1][:9] == "Stockpile":
+                    Continuation_Stockpiled = True
+                if Continuation == {}:
+                    Continuation = nxt_dist
+                else:
+                    if block[1][:9] == "Stockpile":
+                        Continuation = nxt_dist
+                    else:
+                        Continuation = System.following_operation(Continuation, nxt_dist)
+        return Main_Path
 
     def sample_POC(self, failures):
         """
@@ -391,7 +452,8 @@ class System:
         
 if __name__ == "__main__":
     #test = handle_csv()
-    test2 = handle_csv("example_model2.csv")
+    #test2 = handle_csv("example_model2.csv")
+    test3 = handle_csv("example_model3.csv")
 
 
 

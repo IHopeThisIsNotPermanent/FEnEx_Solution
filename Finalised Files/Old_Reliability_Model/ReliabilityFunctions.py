@@ -48,7 +48,7 @@ class FailureFunction:
 
         if choose == "Constant":
             self.sample_func = lambda : (params[0] < random.random(),)
-            self.intg_func = lambda t : params[0] + params[1]/2 #kinda jank, but if you "integrate" between 
+            self.intg_func = lambda t : t * (params[0]/params[1]) #kinda jank, but if you "integrate" between 
                                                                 #t and t-ttr it will always return params[0]
                                                                 
         if choose == "Normal":
